@@ -1,5 +1,7 @@
 #![allow(unused)]
-use std::{net::{UdpSocket}, fmt::Display};
+mod packet;
+
+use std::{net::{UdpSocket}, fmt::Display, str::Bytes};
 use inquire::{Text};
 use std::io::{Write, ErrorKind, Read, BufReader, prelude::*};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
@@ -8,10 +10,10 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 enum OPCode {
     RRQ = 1,
     WRQ = 2,
-    DATA = 3,
+    Data = 3,
     ACK = 4,
-    ERR = 5,
-    INVALID
+    Error = 5,
+    Invalid
 }
 
 impl From<u16> for OPCode {
@@ -19,22 +21,33 @@ impl From<u16> for OPCode {
         return match i {
         1 => OPCode::RRQ,
         2 => OPCode::WRQ,
-        3 => OPCode::DATA,
+        3 => OPCode::Data,
         4 => OPCode::ACK,
-        5 => OPCode::ERR,
-        _ => OPCode::INVALID
+        5 => OPCode::Error,
+        _ => OPCode::Invalid
         }
     }
 }
+
+// impl OPCode {
+//     fn as_bytes(&self) -> Vec<u8>{
+//         match self {
+//             OPCode::Error => {
+                
+//             }
+//             _ => Vec::new()
+//         }
+//     }
+// }
 
 impl Display for OPCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         return write!(f, "{}", match self {
             OPCode::RRQ => "Read Request",
             OPCode::WRQ => "Write Request",
-            OPCode::DATA => "Data",
+            OPCode::Data => "Data",
             OPCode::ACK => "Acknowledge",
-            OPCode::ERR => "Error",
+            OPCode::Error => "Error",
             _ => "Invalid OPCode"
         });
     }
@@ -45,7 +58,7 @@ enum TransferMode {
     NETASCII,
     OCTET,
     MAIL,
-    INVALID
+    Invalid
 }
 
 impl From<&str> for TransferMode {
@@ -54,7 +67,7 @@ impl From<&str> for TransferMode {
             "netascii" => TransferMode::NETASCII,
             "octet" => TransferMode::OCTET,
             "mail" => TransferMode::MAIL,
-            _ => TransferMode::INVALID
+            _ => TransferMode::Invalid
         }
     }
 }
@@ -91,7 +104,7 @@ fn main() {
     #[cfg(debug_assertions)]
     let directory = cwd.to_str().unwrap();
 
-    #[cfg(not_debug_assertions)]
+    #[cfg(not(debug_assertions))]
     let directory = Text::new("Working directory")
     .with_default(cwd.to_str().unwrap())
     .prompt()
@@ -117,6 +130,7 @@ fn main() {
 
     println!("Starting TFTP server on {}", bind_address);
     let socket = listener.unwrap();
+
     loop {
         let mut buf = [0; 516];
         let (amt, src) = socket.recv_from(&mut buf).unwrap();
@@ -155,8 +169,25 @@ fn main() {
             println!("Provided filename: {}", filename);  
             println!("Transfer mode: {}", mode_str);
         }
+        if op == OPCode::WRQ {
+            println!("Sending error");
+            let mut error: Vec<u8> = Vec::new();
+            let opcode: u16 = 5;
+            let ecode: u16 = 2;
 
-        if op == OPCode::DATA {
+            error.extend(opcode.to_be_bytes());
+            error.extend(ecode.to_le_bytes());
+            
+            error.extend("Access violation.".as_bytes());
+            
+            error.push(0);
+
+            socket.send_to(&error, &src).unwrap();
+
+            
+        }
+
+        if op == OPCode::Data {
             
         }
     }
